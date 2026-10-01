@@ -1,0 +1,439 @@
+import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:provider/provider.dart';
+import '../../models/models.dart';
+import '../../providers/inventory_provider.dart';
+import '../../services/product_lookup_service.dart';
+import '../../utils/currency_utils.dart';
+
+class ProductFormScreen extends StatefulWidget {
+  final Product? productToEdit;
+  final String? initialBarcode;
+
+  const ProductFormScreen({
+    super.key,
+    this.productToEdit,
+    this.initialBarcode,
+  });
+
+  @override
+  State<ProductFormScreen> createState() => _ProductFormScreenState();
+}
+
+class _ProductFormScreenState extends State<ProductFormScreen> {
+  final _formKey = GlobalKey<FormState>();
+
+  late TextEditingController _barcodeController;
+  late TextEditingController _nameController;
+  late TextEditingController _priceController;
+  late TextEditingController _costPriceController;
+  late TextEditingController _stockController;
+  late TextEditingController _categoryController;
+
+  String _selectedUnit = 'Cái';
+  bool _isLookingUp = false;
+  String? _lookupSuccessNotice;
+
+  final FocusNode _priceFocusNode = FocusNode();
+
+  static const List<String> _commonUnits = [
+    'Cái',
+    'Gói',
+    'Lon',
+    'Chai',
+    'Hộp',
+    'Kg',
+    'Túi',
+    'Thùng',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    final p = widget.productToEdit;
+
+    _barcodeController = TextEditingController(text: p?.barcode ?? widget.initialBarcode ?? '');
+    _nameController = TextEditingController(text: p?.name ?? '');
+    _priceController = TextEditingController(text: p != null ? p.price.toString() : '');
+    _costPriceController = TextEditingController(text: p?.costPrice != null ? p!.costPrice.toString() : '');
+    _stockController = TextEditingController(text: p != null ? p.stock.toString() : '10');
+    _categoryController = TextEditingController(text: p?.category ?? 'Chung');
+    _selectedUnit = p?.unit ?? 'Cái';
+
+    // Nếu tạo mới và đã có mã vạch ban đầu, tự động tra cứu tên
+    if (widget.productToEdit == null && _barcodeController.text.isNotEmpty) {
+      _lookupOnlineName(_barcodeController.text);
+    }
+  }
+
+  @override
+  void dispose() {
+    _barcodeController.dispose();
+    _nameController.dispose();
+    _priceController.dispose();
+    _costPriceController.dispose();
+    _stockController.dispose();
+    _categoryController.dispose();
+    _priceFocusNode.dispose();
+    super.dispose();
+  }
+
+  /// Tra cứu tên sản phẩm từ mã vạch qua Open Food Facts
+  Future<void> _lookupOnlineName(String barcode) async {
+    if (barcode.trim().isEmpty) return;
+
+    setState(() {
+      _isLookingUp = true;
+      _lookupSuccessNotice = null;
+    });
+
+    final name = await ProductLookupService.lookupProductName(barcode);
+
+    if (mounted) {
+      setState(() {
+        _isLookingUp = false;
+        if (name != null && name.isNotEmpty) {
+          _nameController.text = name;
+          _lookupSuccessNotice = 'Đã tự động lấy tên sản phẩm';
+          // Tự động focus vào ô giá bán để gõ giá ngay
+          _priceFocusNode.requestFocus();
+        }
+      });
+    }
+  }
+
+  /// Mở camera quét mã vạch
+  void _openBarcodeScanner() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.black,
+      builder: (ctx) {
+        return SizedBox(
+          height: MediaQuery.of(context).size.height * 0.7,
+          child: Stack(
+            children: [
+              MobileScanner(
+                onDetect: (capture) {
+                  final barcodes = capture.barcodes;
+                  if (barcodes.isNotEmpty) {
+                    final code = barcodes.first.rawValue;
+                    if (code != null && code.isNotEmpty) {
+                      Navigator.of(ctx).pop();
+                      _barcodeController.text = code;
+                      _lookupOnlineName(code);
+                    }
+                  }
+                },
+              ),
+              Positioned(
+                top: 16,
+                right: 16,
+                child: IconButton.filled(
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: () => Navigator.of(ctx).pop(),
+                ),
+              ),
+              const Positioned(
+                bottom: 24,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Card(
+                    color: Colors.black87,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Text(
+                        'Hướng camera về phía mã vạch sản phẩm',
+                        style: TextStyle(color: Colors.white, fontSize: 13),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _saveProduct() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final barcode = _barcodeController.text.trim();
+    final name = _nameController.text.trim();
+    final price = CurrencyUtils.parseVND(_priceController.text);
+    final costPrice = _costPriceController.text.trim().isNotEmpty
+        ? CurrencyUtils.parseVND(_costPriceController.text)
+        : null;
+    final stock = int.tryParse(_stockController.text.trim()) ?? 0;
+    final category = _categoryController.text.trim().isEmpty ? 'Chung' : _categoryController.text.trim();
+
+    final product = Product(
+      barcode: barcode,
+      name: name,
+      price: price,
+      costPrice: costPrice,
+      unit: _selectedUnit,
+      stock: stock,
+      category: category,
+      createdAt: widget.productToEdit?.createdAt,
+    );
+
+    final provider = context.read<InventoryProvider>();
+    bool success;
+
+    if (widget.productToEdit != null) {
+      success = await provider.updateProduct(product);
+    } else {
+      success = await provider.addProduct(product);
+    }
+
+    if (mounted) {
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_outline_rounded, color: Colors.white),
+                const SizedBox(width: 8),
+                Text(widget.productToEdit != null
+                    ? 'Đã cập nhật sản phẩm thành công'
+                    : 'Đã lưu sản phẩm vào kho thành công'),
+              ],
+            ),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+          ),
+        );
+        Navigator.of(context).pop(true);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.error_outline_rounded, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Có lỗi xảy ra khi lưu sản phẩm'),
+              ],
+            ),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isEditing = widget.productToEdit != null;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(isEditing ? 'Chỉnh sửa sản phẩm' : 'Đăng ký sản phẩm mới'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FilledButton.icon(
+              onPressed: _saveProduct,
+              icon: const Icon(Icons.save_rounded, size: 18),
+              label: const Text('Lưu'),
+            ),
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Mã vạch
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _barcodeController,
+                      readOnly: isEditing,
+                      decoration: InputDecoration(
+                        labelText: 'Mã vạch (Barcode) *',
+                        hintText: 'Quét hoặc nhập mã',
+                        prefixIcon: const Icon(Icons.qr_code_2_rounded),
+                        suffixIcon: _isLookingUp
+                            ? const Padding(
+                                padding: EdgeInsets.all(12),
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              )
+                            : null,
+                      ),
+                      validator: (val) =>
+                          (val == null || val.trim().isEmpty) ? 'Vui lòng nhập hoặc quét mã vạch' : null,
+                      onChanged: (val) {
+                        if (!isEditing && val.length >= 8) {
+                          _lookupOnlineName(val);
+                        }
+                      },
+                    ),
+                  ),
+                  if (!isEditing) ...[
+                    const SizedBox(width: 8),
+                    IconButton.filledTonal(
+                      onPressed: _openBarcodeScanner,
+                      tooltip: 'Mở camera quét mã',
+                      padding: const EdgeInsets.all(16),
+                      icon: const Icon(Icons.qr_code_scanner_rounded),
+                    ),
+                  ],
+                ],
+              ),
+
+              if (_lookupSuccessNotice != null) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Icon(Icons.auto_awesome_rounded, size: 16, color: colorScheme.primary),
+                    const SizedBox(width: 4),
+                    Text(
+                      _lookupSuccessNotice!,
+                      style: TextStyle(color: colorScheme.primary, fontSize: 12, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ],
+
+              const SizedBox(height: 16),
+
+              // Tên sản phẩm
+              TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Tên sản phẩm *',
+                  hintText: 'Ví dụ: Mì Hảo Hảo tôm chua cay',
+                  prefixIcon: Icon(Icons.edit_note_rounded),
+                ),
+                validator: (val) =>
+                    (val == null || val.trim().isEmpty) ? 'Vui lòng nhập tên sản phẩm' : null,
+              ),
+
+              const SizedBox(height: 16),
+
+              // Giá bán & Giá vốn
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _priceController,
+                      focusNode: _priceFocusNode,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Giá bán (VNĐ) *',
+                        hintText: '10000',
+                        prefixIcon: Icon(Icons.payments_rounded),
+                        suffixText: '₫',
+                      ),
+                      validator: (val) {
+                        if (val == null || val.trim().isEmpty) return 'Nhập giá bán';
+                        final num = CurrencyUtils.parseVND(val);
+                        if (num <= 0) return 'Giá phải > 0';
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _costPriceController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Giá vốn (tùy chọn)',
+                        hintText: '8000',
+                        prefixIcon: Icon(Icons.price_change_outlined),
+                        suffixText: '₫',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              // Tồn kho & Phân loại
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _stockController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Số lượng tồn kho',
+                        hintText: '0',
+                        prefixIcon: Icon(Icons.inventory_2_outlined),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _categoryController,
+                      decoration: const InputDecoration(
+                        labelText: 'Phân loại / Nhóm',
+                        hintText: 'Bánh kẹo, Gia vị...',
+                        prefixIcon: Icon(Icons.category_outlined),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 20),
+
+              // Đơn vị tính
+              const Text(
+                'Đơn vị tính:',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _commonUnits.map((u) {
+                  final isSelected = _selectedUnit == u;
+                  return ChoiceChip(
+                    label: Text(u),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() {
+                          _selectedUnit = u;
+                        });
+                      }
+                    },
+                  );
+                }).toList(),
+              ),
+
+              const SizedBox(height: 32),
+
+              FilledButton.icon(
+                onPressed: _saveProduct,
+                icon: const Icon(Icons.check_circle_rounded),
+                label: Text(
+                  isEditing ? 'CẬP NHẬT SẢN PHẨM' : 'LƯU VÀO KHO HÀNG',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
