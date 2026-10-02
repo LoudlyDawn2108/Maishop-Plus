@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/models.dart';
@@ -33,6 +34,9 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   String _selectedUnit = 'Cái';
   bool _isLookingUp = false;
   String? _lookupSuccessNotice;
+  String? _lookupOriginalName;
+  bool _wasTranslated = false;
+  Timer? _debounceTimer;
 
   final FocusNode _priceFocusNode = FocusNode();
 
@@ -68,6 +72,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _barcodeController.dispose();
     _nameController.dispose();
     _priceController.dispose();
@@ -78,23 +83,41 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     super.dispose();
   }
 
-  /// Tra cứu tên sản phẩm từ mã vạch qua Open Food Facts
+  void _onBarcodeChanged(String val) {
+    _debounceTimer?.cancel();
+    final clean = val.trim();
+    if (widget.productToEdit == null && clean.length >= 8) {
+      _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+        _lookupOnlineName(clean);
+      });
+    }
+  }
+
+  /// Tra cứu tên sản phẩm từ mã vạch qua các nguồn mở & tự động dịch sang tiếng Việt
   Future<void> _lookupOnlineName(String barcode) async {
     if (barcode.trim().isEmpty) return;
 
     setState(() {
       _isLookingUp = true;
       _lookupSuccessNotice = null;
+      _lookupOriginalName = null;
+      _wasTranslated = false;
     });
 
-    final name = await ProductLookupService.lookupProductName(barcode);
+    final result = await ProductLookupService.lookupProduct(barcode);
 
     if (mounted) {
       setState(() {
         _isLookingUp = false;
-        if (name != null && name.isNotEmpty) {
-          _nameController.text = name;
-          _lookupSuccessNotice = 'Đã tự động lấy tên sản phẩm';
+        if (result != null && result.productName.isNotEmpty) {
+          _nameController.text = result.productName;
+          _lookupOriginalName = result.originalName;
+          _wasTranslated = result.wasTranslated;
+          if (result.wasTranslated && result.originalName != null) {
+            _lookupSuccessNotice = 'Tự động dịch sang Tiếng Việt (${result.source})';
+          } else {
+            _lookupSuccessNotice = 'Đã tìm thấy từ ${result.source}';
+          }
           // Tự động focus vào ô giá bán để gõ giá ngay
           _priceFocusNode.requestFocus();
         }
@@ -219,6 +242,13 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                     child: TextFormField(
                       controller: _barcodeController,
                       readOnly: isEditing,
+                      textInputAction: TextInputAction.search,
+                      onFieldSubmitted: (val) {
+                        _debounceTimer?.cancel();
+                        if (!isEditing && val.trim().isNotEmpty) {
+                          _lookupOnlineName(val.trim());
+                        }
+                      },
                       decoration: InputDecoration(
                         labelText: 'Mã vạch (Barcode) *',
                         hintText: 'Quét hoặc nhập mã',
@@ -232,15 +262,20 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                                   child: CircularProgressIndicator(strokeWidth: 2),
                                 ),
                               )
-                            : null,
+                            : (!isEditing
+                                ? IconButton(
+                                    icon: const Icon(Icons.search_rounded),
+                                    tooltip: 'Tra cứu thông tin mã vạch',
+                                    onPressed: () {
+                                      _debounceTimer?.cancel();
+                                      _lookupOnlineName(_barcodeController.text.trim());
+                                    },
+                                  )
+                                : null),
                       ),
                       validator: (val) =>
                           (val == null || val.trim().isEmpty) ? 'Vui lòng nhập hoặc quét mã vạch' : null,
-                      onChanged: (val) {
-                        if (!isEditing && val.length >= 8) {
-                          _lookupOnlineName(val);
-                        }
-                      },
+                      onChanged: _onBarcodeChanged,
                     ),
                   ),
                   if (!isEditing) ...[
@@ -276,12 +311,50 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                 controller: _nameController,
                 decoration: const InputDecoration(
                   labelText: 'Tên sản phẩm *',
-                  hintText: 'Ví dụ: Mì Hảo Hảo tôm chua cay',
+                  hintText: 'Ví dụ: Dầu gội Dove dưỡng ẩm',
                   prefixIcon: Icon(Icons.edit_note_rounded),
                 ),
                 validator: (val) =>
                     (val == null || val.trim().isEmpty) ? 'Vui lòng nhập tên sản phẩm' : null,
               ),
+
+              if (_wasTranslated && _lookupOriginalName != null) ...[
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerHighest.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.5)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.translate_rounded, size: 16, color: colorScheme.primary),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Tên gốc: $_lookupOriginalName',
+                          style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      TextButton(
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _nameController.text = _lookupOriginalName!;
+                          });
+                        },
+                        child: const Text('Dùng tên gốc', style: TextStyle(fontSize: 11)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
 
               const SizedBox(height: 16),
 
