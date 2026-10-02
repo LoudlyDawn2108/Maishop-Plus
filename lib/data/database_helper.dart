@@ -59,7 +59,47 @@ class DatabaseHelper {
       )
     ''');
 
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+      )
+    ''');
+
     await db.execute('CREATE INDEX idx_orders_created_at ON orders(created_at)');
+  }
+
+  // ==================== SETTINGS OPERATIONS ====================
+
+  Future<String?> getSetting(String key) async {
+    final db = await database;
+    await db.execute('CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT)');
+    final rows = await db.query('app_settings', where: 'key = ?', whereArgs: [key]);
+    if (rows.isNotEmpty) return rows.first['value'] as String?;
+    return null;
+  }
+
+  Future<void> setSetting(String key, String? value) async {
+    final db = await database;
+    await db.execute('CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT)');
+    if (value == null) {
+      await db.delete('app_settings', where: 'key = ?', whereArgs: [key]);
+    } else {
+      await db.insert('app_settings', {'key': key, 'value': value}, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+  }
+
+  Future<Map<String, String>> getAllSettings() async {
+    final db = await database;
+    await db.execute('CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT)');
+    final rows = await db.query('app_settings');
+    final map = <String, String>{};
+    for (final r in rows) {
+      if (r['key'] != null && r['value'] != null) {
+        map[r['key'] as String] = r['value'] as String;
+      }
+    }
+    return map;
   }
 
   // ==================== PRODUCT CRUD ====================

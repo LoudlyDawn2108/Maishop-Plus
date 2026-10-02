@@ -12,6 +12,9 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  int _selectedMethodIndex = 0; // 0: Apps Script (Khuyên dùng), 1: Service Account JSON
+
+  final TextEditingController _appsScriptUrlController = TextEditingController();
   final TextEditingController _sheetIdController = TextEditingController();
   final TextEditingController _jsonController = TextEditingController();
 
@@ -23,32 +26,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     final sheets = SheetsService.instance;
+    _appsScriptUrlController.text = sheets.webAppUrl ?? '';
     _sheetIdController.text = sheets.spreadsheetId ?? '';
     _jsonController.text = sheets.credentialsJson ?? '';
+
+    if (sheets.activeMode == SheetsConnectionMode.serviceAccount &&
+        (sheets.spreadsheetId?.isNotEmpty ?? false)) {
+      _selectedMethodIndex = 1;
+    } else {
+      _selectedMethodIndex = 0;
+    }
   }
 
   @override
   void dispose() {
+    _appsScriptUrlController.dispose();
     _sheetIdController.dispose();
     _jsonController.dispose();
     super.dispose();
   }
 
   Future<void> _saveSettings() async {
-    final sheetId = _sheetIdController.text.trim();
-    final json = _jsonController.text.trim();
+    if (_selectedMethodIndex == 0) {
+      final url = _appsScriptUrlController.text.trim();
+      if (url.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Vui lòng nhập Google Apps Script Web App URL.')),
+        );
+        return;
+      }
+      await SheetsService.instance.saveAppsScriptConfig(url);
+    } else {
+      final sheetId = _sheetIdController.text.trim();
+      final json = _jsonController.text.trim();
 
-    if (sheetId.isEmpty || json.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng nhập đầy đủ Spreadsheet ID và JSON Service Account.')),
+      if (sheetId.isEmpty || json.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Vui lòng nhập đầy đủ Spreadsheet ID và JSON Service Account.')),
+        );
+        return;
+      }
+      await SheetsService.instance.saveServiceAccountConfig(
+        spreadsheetId: sheetId,
+        credentialsJson: json,
       );
-      return;
     }
-
-    await SheetsService.instance.saveConfig(
-      spreadsheetId: sheetId,
-      credentialsJson: json,
-    );
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -79,7 +101,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       setState(() {
         _isTesting = false;
         _testSuccess = true;
-        _testResult = 'Kết nối thành công! Đã tìm thấy và sẵn sàng đồng bộ 2 tab: "Sản phẩm" & "Đơn hàng".';
+        _testResult = 'Kết nối thành công! Đã sẵn sàng đồng bộ 2 tab "Sản phẩm" & "Đơn hàng" trên Google Sheet.';
       });
     } catch (e) {
       setState(() {
@@ -90,67 +112,72 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  void _copyToClipboard(String text) {
+  void _copyToClipboard(String text, String message) {
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Đã sao chép vào bộ nhớ tạm!')),
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle_outline_rounded, color: Colors.white),
+            const SizedBox(width: 8),
+            Text(message),
+          ],
+        ),
+      ),
     );
   }
 
-  void _showSetupGuide() {
+  void _showAppsScriptGuide() {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Row(
           children: [
-            Icon(Icons.menu_book_rounded),
+            Icon(Icons.code_rounded),
             SizedBox(width: 8),
-            Text('Hướng dẫn cài đặt Sheet'),
+            Flexible(child: Text('Mã Script & Hướng dẫn')),
           ],
         ),
-        content: const SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Bước 1: Tạo Google Sheet',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              Text(
-                'Mở Google Drive bằng tài khoản shop, tạo một Google Sheet mới (VD đặt tên là "MaiShop_Data").',
-              ),
-              SizedBox(height: 12),
-              Text(
-                'Bước 2: Lấy Spreadsheet ID',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              Text(
-                'ID là chuỗi ký tự nằm giữa "/d/" và "/edit" trên thanh địa chỉ trình duyệt:\n'
-                'docs.google.com/spreadsheets/d/[ĐÂY_LÀ_ID]/edit',
-              ),
-              SizedBox(height: 12),
-              Text(
-                'Bước 3: Tạo Service Account',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              Text(
-                'Vào Google Cloud Console > Tạo Service Account > Tạo Khóa (Key dạng JSON) và tải về mở ra copy nội dung dán vào ô bên dưới.',
-              ),
-              SizedBox(height: 12),
-              Text(
-                'Bước 4: Chia sẻ quyền chỉnh sửa',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              Text(
-                'Mở Google Sheet vừa tạo, bấm nút "Chia sẻ" (Share), dán email của Service Account vào và cấp quyền "Người chỉnh sửa" (Editor).',
-              ),
-            ],
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Cách thiết lập Google Apps Script (3 phút):',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                ),
+                const SizedBox(height: 8),
+                const Text('1. Mở Google Sheet của shop trên máy tính/trình duyệt.'),
+                const Text('2. Bấm menu: Tiện ích mở rộng (Extensions) > Apps Script.'),
+                const Text('3. Xóa hết mã cũ trong file Code.gs, bấm nút sao chép bên dưới và dán vào.'),
+                const Text('4. Bấm nút "Triển khai" (Deploy) góc trên bên phải > chọn "Triển khai mới" (New deployment).'),
+                const Text('5. Bấm vào biểu tượng bánh răng ⚙ cạnh "Chọn loại" > chọn "Ứng dụng web" (Web app).'),
+                const Text('6. Tại mục "Ai có quyền truy cập" (Who has access) > Chọn "Bất kỳ ai" (Anyone).'),
+                const Text('7. Bấm "Triển khai" (Deploy) > Cấp quyền truy cập nếu Google hỏi.'),
+                const Text('8. Copy đường link "URL ứng dụng web" (kết thúc bằng /exec) và dán vào app.'),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () {
+                    _copyToClipboard(
+                      SheetsService.googleAppsScriptTemplate,
+                      'Đã sao chép mã script vào bộ nhớ tạm!',
+                    );
+                    Navigator.of(ctx).pop();
+                  },
+                  icon: const Icon(Icons.content_copy_rounded),
+                  label: const Text('SAO CHÉP TOÀN BỘ MÃ SCRIPT'),
+                ),
+              ],
+            ),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Đã hiểu'),
+            child: const Text('Đóng'),
           ),
         ],
       ),
@@ -171,7 +198,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           IconButton(
             tooltip: 'Hướng dẫn cài đặt',
             icon: const Icon(Icons.help_outline_rounded),
-            onPressed: _showSetupGuide,
+            onPressed: _showAppsScriptGuide,
           ),
         ],
       ),
@@ -198,7 +225,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             const SizedBox(height: 16),
 
-            // Thẻ cấu hình Google Sheets
+            // Card cấu hình Google Drive / Sheets
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -210,73 +237,125 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Icon(Icons.table_chart_rounded, color: colorScheme.primary),
                         const SizedBox(width: 8),
                         const Text(
-                          'Kết nối Google Drive / Sheets',
+                          'Đồng bộ Google Sheets',
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                        ),
-                        const Spacer(),
-                        TextButton.icon(
-                          onPressed: _showSetupGuide,
-                          icon: const Icon(Icons.info_outline_rounded, size: 16),
-                          label: const Text('Xem hướng dẫn'),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
-                    TextField(
-                      controller: _sheetIdController,
-                      decoration: const InputDecoration(
-                        labelText: 'Spreadsheet ID (Mã bảng tính) *',
-                        hintText: 'VD: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
-                        prefixIcon: Icon(Icons.link_rounded),
-                      ),
+
+                    // Lựa chọn phương thức kết nối
+                    SegmentedButton<int>(
+                      segments: const [
+                        ButtonSegment<int>(
+                          value: 0,
+                          label: Text('Apps Script (Khuyên dùng)'),
+                          icon: Icon(Icons.flash_on_rounded),
+                        ),
+                        ButtonSegment<int>(
+                          value: 1,
+                          label: Text('Service Account'),
+                          icon: Icon(Icons.key_rounded),
+                        ),
+                      ],
+                      selected: {_selectedMethodIndex},
+                      onSelectionChanged: (set) {
+                        setState(() {
+                          _selectedMethodIndex = set.first;
+                          _testResult = null;
+                        });
+                      },
                     ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _jsonController,
-                      maxLines: 4,
-                      style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
-                      decoration: const InputDecoration(
-                        labelText: 'Service Account Credentials JSON *',
-                        hintText: 'Dán toàn bộ nội dung file JSON vào đây...',
-                        prefixIcon: Icon(Icons.key_rounded),
-                      ),
-                      onChanged: (_) => setState(() {}),
-                    ),
-                    if (saEmail != null) ...[
-                      const SizedBox(height: 12),
+
+                    const SizedBox(height: 16),
+
+                    if (_selectedMethodIndex == 0) ...[
+                      // Giao diện Google Apps Script
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: colorScheme.secondaryContainer.withOpacity(0.5),
+                          color: colorScheme.primaryContainer.withOpacity(0.3),
                           borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: colorScheme.primary.withOpacity(0.2)),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Row(
                           children: [
-                            const Text(
-                              'Email Service Account (Chia sẻ Sheet cho email này):',
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: SelectableText(
-                                    saEmail,
-                                    style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.content_copy_rounded, size: 18),
-                                  onPressed: () => _copyToClipboard(saEmail),
-                                ),
-                              ],
+                            Icon(Icons.tips_and_updates_outlined, color: colorScheme.primary, size: 20),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                'Phương thức này không cần Google Cloud, không sợ bị chặn khóa bảo mật, áp dụng cho mọi tài khoản Google.',
+                                style: TextStyle(fontSize: 12),
+                              ),
                             ),
                           ],
                         ),
                       ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _appsScriptUrlController,
+                        decoration: const InputDecoration(
+                          labelText: 'Google Apps Script Web App URL *',
+                          hintText: 'https://script.google.com/macros/s/.../exec',
+                          prefixIcon: Icon(Icons.link_rounded),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: _showAppsScriptGuide,
+                        icon: const Icon(Icons.code_rounded),
+                        label: const Text('Lấy mã script & Xem hướng dẫn triển khai'),
+                      ),
+                    ] else ...[
+                      // Giao diện Service Account JSON
+                      TextField(
+                        controller: _sheetIdController,
+                        decoration: const InputDecoration(
+                          labelText: 'Spreadsheet ID (Mã bảng tính) *',
+                          hintText: 'VD: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+                          prefixIcon: Icon(Icons.link_rounded),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _jsonController,
+                        maxLines: 3,
+                        style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                        decoration: const InputDecoration(
+                          labelText: 'Service Account Credentials JSON *',
+                          hintText: 'Dán nội dung file JSON vào đây...',
+                          prefixIcon: Icon(Icons.key_rounded),
+                        ),
+                      ),
+                      if (saEmail != null) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: colorScheme.secondaryContainer.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Email: $saEmail',
+                                  style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
+                                ),
+                              ),
+                              IconButton(
+                                iconSize: 18,
+                                icon: const Icon(Icons.content_copy_rounded),
+                                onPressed: () => _copyToClipboard(saEmail, 'Đã copy email!'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
+
                     const SizedBox(height: 16),
+
                     Row(
                       children: [
                         Expanded(
@@ -302,6 +381,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ],
                     ),
+
                     if (_testResult != null) ...[
                       const SizedBox(height: 12),
                       Container(
@@ -328,7 +408,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 _testResult!,
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: _testSuccess ? Colors.green.shade900 : colorScheme.onErrorContainer,
+                                  color: _testSuccess
+                                      ? (theme.brightness == Brightness.dark ? Colors.greenAccent : Colors.green.shade900)
+                                      : colorScheme.onErrorContainer,
                                 ),
                               ),
                             ),

@@ -186,6 +186,11 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
         title: const Text('Lịch sử bán hàng'),
         actions: [
           IconButton(
+            tooltip: 'Làm mới',
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: _loadOrders,
+          ),
+          IconButton(
             tooltip: 'Đồng bộ đơn lên Sheets',
             icon: _isSyncing
                 ? const SizedBox(
@@ -288,22 +293,30 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _orders.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.receipt_long_rounded, size: 64, color: colorScheme.outline),
-                              const SizedBox(height: 12),
-                              const Text(
-                                'Chưa có đơn hàng nào',
-                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      ? LayoutBuilder(
+                          builder: (context, constraints) => SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                              child: Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.receipt_long_rounded, size: 64, color: colorScheme.outline),
+                                    const SizedBox(height: 12),
+                                    const Text(
+                                      'Chưa có đơn hàng nào',
+                                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      'Các đơn thanh toán sẽ tự động lưu vào đây',
+                                      style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              const SizedBox(height: 6),
-                              Text(
-                                'Các đơn thanh toán sẽ tự động lưu vào đây',
-                                style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
-                              ),
-                            ],
+                            ),
                           ),
                         )
                       : ListView.separated(

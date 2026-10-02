@@ -20,7 +20,7 @@ class _PosScreenState extends State<PosScreen> {
     torchEnabled: false,
   );
 
-  bool _isCameraExpanded = true;
+  bool _isCameraExpanded = false;
   bool _isTorchOn = false;
   DateTime _lastScannedTime = DateTime.now().subtract(const Duration(seconds: 5));
   String? _lastScannedCode;
@@ -75,98 +75,6 @@ class _PosScreenState extends State<PosScreen> {
     }
   }
 
-  void _showAddManualItemDialog(BuildContext context, CartProvider cart) {
-    final nameCtrl = TextEditingController();
-    final priceCtrl = TextEditingController();
-    final qtyCtrl = TextEditingController(text: '1');
-    String unit = 'Cái';
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDlgState) => AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.playlist_add_rounded),
-              SizedBox(width: 8),
-              Text('Thêm hàng không mã'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameCtrl,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: 'Tên mặt hàng *',
-                  hintText: 'VD: Rau muống, Túi đá, Trứng gà...',
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: TextField(
-                      controller: priceCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Đơn giá (VNĐ) *',
-                        suffixText: '₫',
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: qtyCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'SL',
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 6,
-                children: ['Cái', 'Gói', 'Túi', 'Kg', 'Quả', 'Bó'].map((u) {
-                  return ChoiceChip(
-                    label: Text(u),
-                    selected: unit == u,
-                    onSelected: (selected) {
-                      if (selected) setDlgState(() => unit = u);
-                    },
-                  );
-                }).toList(),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Hủy'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final name = nameCtrl.text.trim();
-                final price = CurrencyUtils.parseVND(priceCtrl.text);
-                final qty = int.tryParse(qtyCtrl.text.trim()) ?? 1;
-
-                if (name.isEmpty || price <= 0) return;
-
-                cart.addManualItem(name, price, quantity: qty, unit: unit);
-                Navigator.of(ctx).pop();
-              },
-              child: const Text('Thêm vào giỏ'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -262,48 +170,34 @@ class _PosScreenState extends State<PosScreen> {
               ),
             ),
 
-          // Nhập mã thủ công hoặc thêm hàng nhanh
+          // Nhập mã vạch thủ công
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _manualCodeController,
-                    decoration: InputDecoration(
-                      hintText: 'Nhập mã vạch thủ công...',
-                      isDense: true,
-                      prefixIcon: const Icon(Icons.keyboard_alt_outlined, size: 20),
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.add_circle_outline_rounded),
-                        onPressed: () {
-                          final code = _manualCodeController.text.trim();
-                          if (code.isNotEmpty) {
-                            _handleBarcodeDetect(code, cart);
-                            _manualCodeController.clear();
-                          }
-                        },
-                      ),
-                    ),
-                    onSubmitted: (val) {
-                      final code = val.trim();
-                      if (code.isNotEmpty) {
-                        _handleBarcodeDetect(code, cart);
-                        _manualCodeController.clear();
-                      }
-                    },
-                  ),
+            child: TextField(
+              controller: _manualCodeController,
+              decoration: InputDecoration(
+                hintText: 'Nhập mã vạch sản phẩm...',
+                isDense: true,
+                prefixIcon: const Icon(Icons.keyboard_alt_outlined, size: 20),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.add_circle_outline_rounded),
+                  tooltip: 'Thêm vào giỏ',
+                  onPressed: () {
+                    final code = _manualCodeController.text.trim();
+                    if (code.isNotEmpty) {
+                      _handleBarcodeDetect(code, cart);
+                      _manualCodeController.clear();
+                    }
+                  },
                 ),
-                const SizedBox(width: 8),
-                FilledButton.tonalIcon(
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  ),
-                  onPressed: () => _showAddManualItemDialog(context, cart),
-                  icon: const Icon(Icons.add_box_outlined, size: 18),
-                  label: const Text('Hàng lẻ'),
-                ),
-              ],
+              ),
+              onSubmitted: (val) {
+                final code = val.trim();
+                if (code.isNotEmpty) {
+                  _handleBarcodeDetect(code, cart);
+                  _manualCodeController.clear();
+                }
+              },
             ),
           ),
 
@@ -314,25 +208,51 @@ class _PosScreenState extends State<PosScreen> {
             child: cart.items.isEmpty
                 ? Center(
                     child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.qr_code_scanner_rounded,
-                            size: 48,
-                            color: colorScheme.outline,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(24),
+                        onTap: () {
+                          setState(() {
+                            _isCameraExpanded = !_isCameraExpanded;
+                          });
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: colorScheme.primaryContainer.withOpacity(0.35),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  _isCameraExpanded
+                                      ? Icons.photo_camera_outlined
+                                      : Icons.qr_code_scanner_rounded,
+                                  size: 56,
+                                  color: colorScheme.primary,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                _isCameraExpanded
+                                    ? 'Đang bật camera quét'
+                                    : 'Chạm để mở camera quét mã',
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                _isCameraExpanded
+                                    ? 'Đưa mã vạch vào khung ngắm phía trên'
+                                    : 'Món chưa có trong kho sẽ có thông báo để đăng ký riêng',
+                                style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Quét mã vạch sản phẩm để tính tiền',
-                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Món chưa có trong kho sẽ có thông báo để đăng ký riêng',
-                            style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   )

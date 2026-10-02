@@ -12,18 +12,8 @@ import 'ui/screens/inventory_screen.dart';
 import 'ui/screens/orders_history_screen.dart';
 import 'ui/screens/settings_screen.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Đặt hướng màn hình ưu tiên dọc cho điện thoại bán hàng
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
-
-  // Nạp cấu hình Google Sheets từ SQLite
-  await SheetsService.instance.loadConfig();
-
   runApp(const MaiShopApp());
 }
 
@@ -62,26 +52,38 @@ class MainNavigationShell extends StatefulWidget {
 
 class _MainNavigationShellState extends State<MainNavigationShell> {
   int _currentIndex = 0;
+  int _historyKeyCounter = 0;
 
-  final List<Widget> _screens = const [
-    PosScreen(),
-    InventoryScreen(),
-    OrdersHistoryScreen(),
-    SettingsScreen(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+    SheetsService.instance.loadConfig();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
-        children: _screens,
+        children: [
+          const PosScreen(),
+          const InventoryScreen(),
+          OrdersHistoryScreen(key: ValueKey('history_$_historyKeyCounter')),
+          const SettingsScreen(),
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) {
           setState(() {
             _currentIndex = index;
+            if (index == 2) {
+              _historyKeyCounter++;
+            }
           });
         },
         destinations: const [

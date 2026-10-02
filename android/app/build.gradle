@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.example.maishop_plus"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 35
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

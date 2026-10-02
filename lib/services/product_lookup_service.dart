@@ -12,7 +12,7 @@ class ProductLookupService {
     if (cleanBarcode.isEmpty) return null;
 
     final url = Uri.parse(
-      'https://world.openfoodfacts.net/api/v2/product/$cleanBarcode.json?fields=product_name,product_name_vi,product_name_en,brands,quantity',
+      'https://world.openfoodfacts.org/api/v2/product/$cleanBarcode.json?fields=product_name,product_name_vi,product_name_en,brands,quantity',
     );
 
     try {
