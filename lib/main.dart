@@ -70,7 +70,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
       body: IndexedStack(
         index: _currentIndex,
         children: [
-          const PosScreen(),
+          PosScreen(isActive: _currentIndex == 0),
           const InventoryScreen(),
           OrdersHistoryScreen(key: ValueKey('history_$_historyKeyCounter')),
           const SettingsScreen(),

@@ -8,13 +8,15 @@ import 'checkout_dialog.dart';
 import 'product_form_screen.dart';
 
 class PosScreen extends StatefulWidget {
-  const PosScreen({super.key});
+  final bool isActive;
+  const PosScreen({super.key, this.isActive = true});
 
   @override
   State<PosScreen> createState() => _PosScreenState();
 }
 
-class _PosScreenState extends State<PosScreen> with SingleTickerProviderStateMixin {
+class _PosScreenState extends State<PosScreen>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   final MobileScannerController _scannerController = MobileScannerController(
     detectionSpeed: DetectionSpeed.normal,
     facing: CameraFacing.back,
@@ -36,6 +38,7 @@ class _PosScreenState extends State<PosScreen> with SingleTickerProviderStateMix
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _focusAnimController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
@@ -43,11 +46,41 @@ class _PosScreenState extends State<PosScreen> with SingleTickerProviderStateMix
   }
 
   @override
+  void didUpdateWidget(covariant PosScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Tự động tắt camera khi chuyển sang màn hình/tab khác
+    if (oldWidget.isActive && !widget.isActive) {
+      _turnOffCamera();
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Tự động tắt camera khi app bị thu nhỏ hoặc không còn hiển thị
+    if (state != AppLifecycleState.resumed) {
+      _turnOffCamera();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _focusAnimController.dispose();
     _scannerController.dispose();
     _manualCodeController.dispose();
     super.dispose();
+  }
+
+  void _turnOffCamera() {
+    if (_isCameraExpanded) {
+      setState(() {
+        _isCameraExpanded = false;
+        _isTorchOn = false;
+      });
+      try {
+        _scannerController.stop();
+      } catch (_) {}
+    }
   }
 
   void _onTapToFocus(TapDownDetails details) {
@@ -69,6 +102,10 @@ class _PosScreenState extends State<PosScreen> with SingleTickerProviderStateMix
   }
 
   void _handleBarcodeDetect(String code, CartProvider cart) async {
+    // Tự động tắt camera ngay lập tức sau khi quét được mã
+    _turnOffCamera();
+    HapticFeedback.mediumImpact();
+
     // Tránh quét lặp lại liên tiếp trong vòng 1.5 giây đối với cùng 1 mã
     final now = DateTime.now();
     if (_lastScannedCode == code && now.difference(_lastScannedTime).inMilliseconds < 1500) {
@@ -121,14 +158,18 @@ class _PosScreenState extends State<PosScreen> with SingleTickerProviderStateMix
         title: const Text('Thu ngân / Bán hàng'),
         actions: [
           IconButton(
-            tooltip: _isCameraExpanded ? 'Thu gọn camera' : 'Mở camera quét',
+            tooltip: _isCameraExpanded ? 'Tắt camera' : 'Mở camera quét',
             icon: Icon(
-              _isCameraExpanded ? Icons.visibility_off_outlined : Icons.photo_camera_outlined,
+              _isCameraExpanded ? Icons.close_rounded : Icons.photo_camera_outlined,
             ),
             onPressed: () {
-              setState(() {
-                _isCameraExpanded = !_isCameraExpanded;
-              });
+              if (_isCameraExpanded) {
+                _turnOffCamera();
+              } else {
+                setState(() {
+                  _isCameraExpanded = true;
+                });
+              }
             },
           ),
           if (cart.items.isNotEmpty)
@@ -277,34 +318,70 @@ class _PosScreenState extends State<PosScreen> with SingleTickerProviderStateMix
               ),
             ),
 
-          // Nhập mã vạch thủ công
+          // Nhập mã vạch thủ công & Nút kích hoạt camera quét mã
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: TextField(
-              controller: _manualCodeController,
-              decoration: InputDecoration(
-                hintText: 'Nhập mã vạch sản phẩm...',
-                isDense: true,
-                prefixIcon: const Icon(Icons.keyboard_alt_outlined, size: 20),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.add_circle_outline_rounded),
-                  tooltip: 'Thêm vào giỏ',
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _manualCodeController,
+                    decoration: InputDecoration(
+                      hintText: 'Nhập mã vạch sản phẩm...',
+                      isDense: true,
+                      prefixIcon: const Icon(Icons.keyboard_alt_outlined, size: 20),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.add_circle_outline_rounded),
+                        tooltip: 'Thêm vào giỏ',
+                        onPressed: () {
+                          final code = _manualCodeController.text.trim();
+                          if (code.isNotEmpty) {
+                            _handleBarcodeDetect(code, cart);
+                            _manualCodeController.clear();
+                          }
+                        },
+                      ),
+                    ),
+                    onSubmitted: (val) {
+                      final code = val.trim();
+                      if (code.isNotEmpty) {
+                        _handleBarcodeDetect(code, cart);
+                        _manualCodeController.clear();
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filled(
+                  style: IconButton.styleFrom(
+                    backgroundColor: _isCameraExpanded
+                        ? colorScheme.errorContainer
+                        : colorScheme.primary,
+                    foregroundColor: _isCameraExpanded
+                        ? colorScheme.onErrorContainer
+                        : colorScheme.onPrimary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.all(12),
+                  ),
+                  tooltip: _isCameraExpanded ? 'Tắt camera' : 'Bật camera quét mã',
+                  icon: Icon(
+                    _isCameraExpanded
+                        ? Icons.close_rounded
+                        : Icons.qr_code_scanner_rounded,
+                  ),
                   onPressed: () {
-                    final code = _manualCodeController.text.trim();
-                    if (code.isNotEmpty) {
-                      _handleBarcodeDetect(code, cart);
-                      _manualCodeController.clear();
+                    if (_isCameraExpanded) {
+                      _turnOffCamera();
+                    } else {
+                      setState(() {
+                        _isCameraExpanded = true;
+                      });
                     }
                   },
                 ),
-              ),
-              onSubmitted: (val) {
-                final code = val.trim();
-                if (code.isNotEmpty) {
-                  _handleBarcodeDetect(code, cart);
-                  _manualCodeController.clear();
-                }
-              },
+              ],
             ),
           ),
 
@@ -318,9 +395,13 @@ class _PosScreenState extends State<PosScreen> with SingleTickerProviderStateMix
                       child: InkWell(
                         borderRadius: BorderRadius.circular(24),
                         onTap: () {
-                          setState(() {
-                            _isCameraExpanded = !_isCameraExpanded;
-                          });
+                          if (_isCameraExpanded) {
+                            _turnOffCamera();
+                          } else {
+                            setState(() {
+                              _isCameraExpanded = true;
+                            });
+                          }
                         },
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
@@ -489,7 +570,12 @@ class _PosScreenState extends State<PosScreen> with SingleTickerProviderStateMix
                     style: FilledButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                     ),
-                    onPressed: cart.items.isEmpty ? null : () => CheckoutDialog.show(context),
+                    onPressed: cart.items.isEmpty
+                        ? null
+                        : () {
+                            _turnOffCamera();
+                            CheckoutDialog.show(context);
+                          },
                     icon: const Icon(Icons.shopping_cart_checkout_rounded),
                     label: const Text(
                       'THANH TOÁN',
