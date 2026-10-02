@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import '../../providers/cart_provider.dart';
@@ -13,7 +14,7 @@ class PosScreen extends StatefulWidget {
   State<PosScreen> createState() => _PosScreenState();
 }
 
-class _PosScreenState extends State<PosScreen> {
+class _PosScreenState extends State<PosScreen> with SingleTickerProviderStateMixin {
   final MobileScannerController _scannerController = MobileScannerController(
     detectionSpeed: DetectionSpeed.normal,
     facing: CameraFacing.back,
@@ -27,11 +28,44 @@ class _PosScreenState extends State<PosScreen> {
 
   final TextEditingController _manualCodeController = TextEditingController();
 
+  // Chạm lấy nét (Tap to focus)
+  late final AnimationController _focusAnimController;
+  Offset? _focusPoint;
+  bool _showFocusReticle = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+  }
+
   @override
   void dispose() {
+    _focusAnimController.dispose();
     _scannerController.dispose();
     _manualCodeController.dispose();
     super.dispose();
+  }
+
+  void _onTapToFocus(TapDownDetails details) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _focusPoint = details.localPosition;
+      _showFocusReticle = true;
+    });
+
+    _focusAnimController.forward(from: 0.0);
+
+    Future.delayed(const Duration(milliseconds: 1200), () {
+      if (mounted) {
+        setState(() {
+          _showFocusReticle = false;
+        });
+      }
+    });
   }
 
   void _handleBarcodeDetect(String code, CartProvider cart) async {
@@ -112,7 +146,7 @@ class _PosScreenState extends State<PosScreen> {
           // Khung quét mã vạch
           if (_isCameraExpanded)
             Container(
-              height: 190,
+              height: 200,
               color: Colors.black,
               child: Stack(
                 children: [
@@ -128,17 +162,90 @@ class _PosScreenState extends State<PosScreen> {
                       }
                     },
                   ),
-                  // Khung ngắm
-                  Center(
-                    child: Container(
-                      width: 220,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: colorScheme.primary, width: 2),
-                        borderRadius: BorderRadius.circular(12),
+
+                  // Lớp bắt sự kiện chạm để lấy nét (Tap to focus)
+                  Positioned.fill(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onTapDown: _onTapToFocus,
+                    ),
+                  ),
+
+                  // Khung ngắm hình chữ nhật
+                  IgnorePointer(
+                    child: Center(
+                      child: Container(
+                        width: 240,
+                        height: 110,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: colorScheme.primary, width: 2.5),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                       ),
                     ),
                   ),
+
+                  // Hiệu ứng ô lấy nét màu vàng khi chạm màn hình
+                  if (_showFocusReticle && _focusPoint != null)
+                    Positioned(
+                      left: _focusPoint!.dx - 28,
+                      top: _focusPoint!.dy - 28,
+                      child: IgnorePointer(
+                        child: AnimatedBuilder(
+                          animation: _focusAnimController,
+                          builder: (context, child) {
+                            final scale = 1.3 - (_focusAnimController.value * 0.3);
+                            return Transform.scale(
+                              scale: scale,
+                              child: Container(
+                                width: 56,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: const Color(0xFFFFD600), // Vàng tiêu cự
+                                    width: 2.2,
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Center(
+                                  child: Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFFFFD600),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+
+                  // Dòng hướng dẫn chạm lấy nét
+                  const Positioned(
+                    bottom: 6,
+                    left: 0,
+                    right: 0,
+                    child: IgnorePointer(
+                      child: Center(
+                        child: Text(
+                          'Chạm vào màn hình để lấy nét',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            shadows: [
+                              Shadow(color: Colors.black, blurRadius: 4),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
                   // Điều khiển Camera (Flash & Flip)
                   Positioned(
                     top: 8,

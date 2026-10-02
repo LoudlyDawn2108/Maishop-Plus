@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import '../../models/models.dart';
 import '../../providers/inventory_provider.dart';
 import '../../services/product_lookup_service.dart';
 import '../../utils/currency_utils.dart';
+import '../widgets/barcode_scanner_sheet.dart';
 
 class ProductFormScreen extends StatefulWidget {
   final Product? productToEdit;
@@ -102,60 +102,20 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     }
   }
 
-  /// Mở camera quét mã vạch
-  void _openBarcodeScanner() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.black,
-      builder: (ctx) {
-        return SizedBox(
-          height: MediaQuery.of(context).size.height * 0.7,
-          child: Stack(
-            children: [
-              MobileScanner(
-                onDetect: (capture) {
-                  final barcodes = capture.barcodes;
-                  if (barcodes.isNotEmpty) {
-                    final code = barcodes.first.rawValue;
-                    if (code != null && code.isNotEmpty) {
-                      Navigator.of(ctx).pop();
-                      _barcodeController.text = code;
-                      _lookupOnlineName(code);
-                    }
-                  }
-                },
-              ),
-              Positioned(
-                top: 16,
-                right: 16,
-                child: IconButton.filled(
-                  icon: const Icon(Icons.close_rounded),
-                  onPressed: () => Navigator.of(ctx).pop(),
-                ),
-              ),
-              const Positioned(
-                bottom: 24,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: Card(
-                    color: Colors.black87,
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      child: Text(
-                        'Hướng camera về phía mã vạch sản phẩm',
-                        style: TextStyle(color: Colors.white, fontSize: 13),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+  /// Mở camera quét mã vạch chuyên dụng (có khung chữ nhật, chạm lấy nét, zoom mã nhỏ)
+  Future<void> _openBarcodeScanner() async {
+    final code = await BarcodeScannerSheet.show(
+      context,
+      title: 'Quét mã vạch đăng ký',
+      hintText: 'Căn mã vạch vào khung chữ nhật • Chạm lấy nét • Chọn 2x nếu mã bé',
     );
+
+    if (code != null && code.isNotEmpty) {
+      setState(() {
+        _barcodeController.text = code;
+      });
+      _lookupOnlineName(code);
+    }
   }
 
   Future<void> _saveProduct() async {

@@ -4,6 +4,7 @@ import '../../models/models.dart';
 import '../../data/database_helper.dart';
 import '../../services/sheets_service.dart';
 import '../../utils/currency_utils.dart';
+import '../../utils/order_stats_helper.dart';
 
 class OrdersHistoryScreen extends StatefulWidget {
   const OrdersHistoryScreen({super.key});
@@ -16,11 +17,21 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
   List<Order> _orders = [];
   bool _isLoading = true;
   bool _isSyncing = false;
+  OrderTimeFilter _selectedFilter = OrderTimeFilter.today;
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
     _loadOrders();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadOrders() async {
@@ -57,7 +68,9 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
               children: [
                 const Icon(Icons.check_circle_rounded, color: Colors.white),
                 const SizedBox(width: 8),
-                Text('Đã đồng bộ $pushedCount đơn hàng lên Google Sheets thành công!'),
+                Expanded(
+                  child: Text('Đã đồng bộ $pushedCount đơn hàng lên Google Sheets thành công!'),
+                ),
               ],
             ),
             backgroundColor: Theme.of(context).colorScheme.primary,
@@ -80,6 +93,8 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
 
   void _showOrderDetails(Order order) {
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm:ss');
+    final colorScheme = Theme.of(context).colorScheme;
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -87,7 +102,13 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
           children: [
             const Icon(Icons.receipt_rounded),
             const SizedBox(width: 8),
-            Text(order.id, style: const TextStyle(fontSize: 16)),
+            Expanded(
+              child: Text(
+                order.id,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
         content: SingleChildScrollView(
@@ -95,13 +116,59 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                'Thời gian: ${dateFormat.format(order.createdAt)}',
-                style: const TextStyle(fontSize: 13, color: Colors.grey),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    dateFormat.format(order.createdAt),
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: order.isSynced
+                          ? Colors.green.withOpacity(0.15)
+                          : Colors.orange.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          order.isSynced ? Icons.cloud_done_rounded : Icons.cloud_off_rounded,
+                          size: 13,
+                          color: order.isSynced ? Colors.green : Colors.orange,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          order.isSynced ? 'Đã đồng bộ' : 'Chưa đồng bộ',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: order.isSynced ? Colors.green : Colors.orange,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              Text(
-                'Hình thức: ${order.paymentMethod == "CHUYEN_KHOAN" ? "Chuyển khoản" : "Tiền mặt"}',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(
+                    order.paymentMethod == 'CHUYEN_KHOAN'
+                        ? Icons.qr_code_rounded
+                        : Icons.payments_outlined,
+                    size: 16,
+                    color: colorScheme.primary,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Hình thức: ${order.paymentMethod == "CHUYEN_KHOAN" ? "Chuyển khoản (QR)" : "Tiền mặt"}',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                ],
               ),
               const Divider(height: 20),
               const Text(
@@ -115,11 +182,15 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Expanded(
-                          child: Text('${item.product.name} (x${item.quantity})'),
+                          child: Text(
+                            '${item.product.name} (x${item.quantity})',
+                            style: const TextStyle(fontSize: 13),
+                          ),
                         ),
+                        const SizedBox(width: 8),
                         Text(
                           CurrencyUtils.formatVND(item.subtotal),
-                          style: const TextStyle(fontWeight: FontWeight.w600),
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                         ),
                       ],
                     ),
@@ -133,12 +204,13 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                     CurrencyUtils.formatVND(order.totalAmount),
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 17,
-                      color: Theme.of(context).colorScheme.primary,
+                      fontSize: 18,
+                      color: colorScheme.primary,
                     ),
                   ),
                 ],
               ),
+              const SizedBox(height: 6),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -146,11 +218,15 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                   Text(CurrencyUtils.formatVND(order.customerPaid)),
                 ],
               ),
+              const SizedBox(height: 4),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('Tiền thối:'),
-                  Text(CurrencyUtils.formatVND(order.changeAmount)),
+                  Text(
+                    CurrencyUtils.formatVND(order.changeAmount),
+                    style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.green),
+                  ),
                 ],
               ),
             ],
@@ -166,25 +242,294 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
     );
   }
 
+  Widget _buildFilterChips(ColorScheme colorScheme) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: OrderTimeFilter.values.map((filter) {
+          final isSelected = _selectedFilter == filter;
+          IconData icon;
+          switch (filter) {
+            case OrderTimeFilter.today:
+              icon = Icons.today_rounded;
+              break;
+            case OrderTimeFilter.thisWeek:
+              icon = Icons.date_range_rounded;
+              break;
+            case OrderTimeFilter.thisMonth:
+              icon = Icons.calendar_month_rounded;
+              break;
+            case OrderTimeFilter.last7Days:
+              icon = Icons.history_toggle_off_rounded;
+              break;
+            case OrderTimeFilter.last30Days:
+              icon = Icons.timelapse_rounded;
+              break;
+            case OrderTimeFilter.all:
+              icon = Icons.all_inclusive_rounded;
+              break;
+          }
+
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FilterChip(
+              avatar: Icon(
+                icon,
+                size: 16,
+                color: isSelected ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
+              ),
+              label: Text(
+                filter.label,
+                style: TextStyle(
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  color: isSelected ? colorScheme.onPrimary : colorScheme.onSurface,
+                ),
+              ),
+              selected: isSelected,
+              selectedColor: colorScheme.primary,
+              checkmarkColor: colorScheme.onPrimary,
+              showCheckmark: false,
+              onSelected: (selected) {
+                if (selected) {
+                  setState(() => _selectedFilter = filter);
+                }
+              },
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildStatsCard(ColorScheme colorScheme, OrderStatistics stats) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.primaryContainer.withOpacity(0.45),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colorScheme.primary.withOpacity(0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.analytics_rounded, size: 18, color: colorScheme.primary),
+              const SizedBox(width: 6),
+              Text(
+                'Thống kê ${_selectedFilter.label.toLowerCase()}',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.primary,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${stats.totalOrders} đơn',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Hàng 1: Doanh thu & Đơn hàng
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Tổng doanh thu',
+                      style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 2),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        CurrencyUtils.formatVND(stats.totalRevenue),
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          color: colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                height: 38,
+                width: 1,
+                color: colorScheme.outlineVariant,
+                margin: const EdgeInsets.symmetric(horizontal: 12),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'TB / đơn',
+                      style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 2),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        CurrencyUtils.formatVND(stats.averageOrderValue),
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                height: 38,
+                width: 1,
+                color: colorScheme.outlineVariant,
+                margin: const EdgeInsets.symmetric(horizontal: 12),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Đã bán',
+                      style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${stats.totalItemsSold} món',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const Divider(height: 20),
+          // Hàng 2: Chi tiết Tiền mặt & Chuyển khoản
+          Row(
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    Icon(Icons.payments_outlined, size: 16, color: colorScheme.secondary),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Tiền mặt (${stats.cashOrdersCount})',
+                            style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                          ),
+                          Text(
+                            CurrencyUtils.formatVND(stats.cashRevenue),
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Row(
+                  children: [
+                    Icon(Icons.qr_code_rounded, size: 16, color: colorScheme.tertiary),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Chuyển khoản (${stats.transferOrdersCount})',
+                            style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                          ),
+                          Text(
+                            CurrencyUtils.formatVND(stats.transferRevenue),
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    // Doanh thu hôm nay
-    final now = DateTime.now();
-    final todayOrders = _orders.where((o) =>
-        o.createdAt.year == now.year &&
-        o.createdAt.month == now.month &&
-        o.createdAt.day == now.day).toList();
+    // Lọc danh sách theo filter thời gian và search query
+    final filteredOrders = OrderStatsHelper.filterOrders(
+      _orders,
+      _selectedFilter,
+      searchQuery: _searchQuery,
+    );
 
-    final todayRevenue = todayOrders.fold(0, (sum, o) => sum + o.totalAmount);
+    // Tính toán thống kê theo danh sách đơn hàng đã lọc
+    final stats = OrderStatsHelper.calculateStats(filteredOrders);
+
     final unsyncedCount = _orders.where((o) => !o.isSynced).length;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Lịch sử bán hàng'),
+        title: _isSearching
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Tìm theo mã đơn, tên hàng...',
+                  border: InputBorder.none,
+                  hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
+                ),
+                style: const TextStyle(fontSize: 16),
+                onChanged: (val) {
+                  setState(() => _searchQuery = val);
+                },
+              )
+            : const Text('Lịch sử bán hàng'),
         actions: [
+          IconButton(
+            tooltip: _isSearching ? 'Đóng tìm kiếm' : 'Tìm kiếm đơn',
+            icon: Icon(_isSearching ? Icons.close_rounded : Icons.search_rounded),
+            onPressed: () {
+              setState(() {
+                if (_isSearching) {
+                  _isSearching = false;
+                  _searchController.clear();
+                  _searchQuery = '';
+                } else {
+                  _isSearching = true;
+                }
+              });
+            },
+          ),
           IconButton(
             tooltip: 'Làm mới',
             icon: const Icon(Icons.refresh_rounded),
@@ -198,7 +543,11 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Icon(Icons.cloud_upload_outlined),
+                : Badge(
+                    isLabelVisible: unsyncedCount > 0,
+                    label: Text('$unsyncedCount'),
+                    child: const Icon(Icons.cloud_upload_outlined),
+                  ),
             onPressed: _isSyncing ? null : _syncOrders,
           ),
         ],
@@ -207,92 +556,67 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
         onRefresh: _loadOrders,
         child: Column(
           children: [
-            // Thẻ tóm tắt doanh thu hôm nay
-            Container(
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer.withOpacity(0.4),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: colorScheme.primary.withOpacity(0.3)),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Doanh thu hôm nay',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          CurrencyUtils.formatVND(todayRevenue),
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                            color: colorScheme.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    height: 40,
-                    width: 1,
-                    color: colorScheme.outlineVariant,
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Đơn hôm nay',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${todayOrders.length} đơn',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: colorScheme.onSurface,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            // Thanh chọn mốc thời gian thống kê
+            _buildFilterChips(colorScheme),
 
+            // Thẻ thống kê doanh thu đa chiều
+            _buildStatsCard(colorScheme, stats),
+
+            // Thông báo đơn chưa đồng bộ
             if (unsyncedCount > 0)
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
                 child: Row(
                   children: [
                     Icon(Icons.cloud_queue_rounded, size: 16, color: colorScheme.error),
                     const SizedBox(width: 6),
-                    Text(
-                      'Có $unsyncedCount đơn chưa đồng bộ lên Google Sheets',
-                      style: TextStyle(fontSize: 12, color: colorScheme.error, fontWeight: FontWeight.w600),
+                    Expanded(
+                      child: Text(
+                        'Có $unsyncedCount đơn chưa đồng bộ lên Google Sheets',
+                        style: TextStyle(fontSize: 12, color: colorScheme.error, fontWeight: FontWeight.w600),
+                      ),
                     ),
-                    const Spacer(),
                     TextButton(
                       onPressed: _syncOrders,
-                      child: const Text('Đồng bộ ngay', style: TextStyle(fontSize: 12)),
+                      child: const Text('Đồng bộ', style: TextStyle(fontSize: 12)),
                     ),
                   ],
                 ),
               ),
 
+            // Tiêu đề số lượng đơn hiển thị
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+              child: Row(
+                children: [
+                  Text(
+                    'Danh sách đơn (${filteredOrders.length})',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  if (_searchQuery.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    Text(
+                      '• Lọc: "$_searchQuery"',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontStyle: FontStyle.italic,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
             // Danh sách đơn hàng
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
-                  : _orders.isEmpty
+                  : filteredOrders.isEmpty
                       ? LayoutBuilder(
                           builder: (context, constraints) => SingleChildScrollView(
                             physics: const AlwaysScrollableScrollPhysics(),
@@ -304,13 +628,17 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                                   children: [
                                     Icon(Icons.receipt_long_rounded, size: 64, color: colorScheme.outline),
                                     const SizedBox(height: 12),
-                                    const Text(
-                                      'Chưa có đơn hàng nào',
-                                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                                    Text(
+                                      _orders.isEmpty
+                                          ? 'Chưa có đơn hàng nào'
+                                          : 'Không có đơn nào trong mốc "${_selectedFilter.label}"',
+                                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                                     ),
                                     const SizedBox(height: 6),
                                     Text(
-                                      'Các đơn thanh toán sẽ tự động lưu vào đây',
+                                      _orders.isEmpty
+                                          ? 'Các đơn thanh toán sẽ tự động lưu vào đây'
+                                          : 'Chọn "Tất cả" hoặc mốc thời gian khác để xem',
                                       style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
                                     ),
                                   ],
@@ -320,23 +648,32 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                           ),
                         )
                       : ListView.separated(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          itemCount: _orders.length,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                          itemCount: filteredOrders.length,
                           separatorBuilder: (_, __) => const SizedBox(height: 8),
                           itemBuilder: (ctx, index) {
-                            final order = _orders[index];
-                            final dateFormat = DateFormat('HH:mm - dd/MM');
+                            final order = filteredOrders[index];
+                            final dateFormat = DateFormat('HH:mm - dd/MM/yyyy');
 
                             return Card(
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                side: BorderSide(color: colorScheme.outlineVariant.withOpacity(0.5)),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                               child: ListTile(
                                 onTap: () => _showOrderDetails(order),
                                 leading: CircleAvatar(
-                                  backgroundColor: colorScheme.secondaryContainer,
+                                  backgroundColor: order.paymentMethod == 'CHUYEN_KHOAN'
+                                      ? colorScheme.tertiaryContainer
+                                      : colorScheme.secondaryContainer,
                                   child: Icon(
                                     order.paymentMethod == 'CHUYEN_KHOAN'
                                         ? Icons.qr_code_rounded
                                         : Icons.payments_outlined,
-                                    color: colorScheme.onSecondaryContainer,
+                                    color: order.paymentMethod == 'CHUYEN_KHOAN'
+                                        ? colorScheme.onTertiaryContainer
+                                        : colorScheme.onSecondaryContainer,
                                     size: 20,
                                   ),
                                 ),
@@ -345,6 +682,27 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                                     Text(
                                       CurrencyUtils.formatVND(order.totalAmount),
                                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                      decoration: BoxDecoration(
+                                        color: (order.paymentMethod == 'CHUYEN_KHOAN'
+                                                ? colorScheme.tertiary
+                                                : colorScheme.secondary)
+                                            .withOpacity(0.12),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        order.paymentMethod == 'CHUYEN_KHOAN' ? 'Chuyển khoản' : 'Tiền mặt',
+                                        style: TextStyle(
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: order.paymentMethod == 'CHUYEN_KHOAN'
+                                              ? colorScheme.tertiary
+                                              : colorScheme.secondary,
+                                        ),
+                                      ),
                                     ),
                                     const Spacer(),
                                     Icon(
