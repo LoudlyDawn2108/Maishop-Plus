@@ -7,7 +7,7 @@
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
     <application
-        android:label="maishop_plus"
+        android:label="MaiShop Plus"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

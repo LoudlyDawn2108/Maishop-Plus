@@ -83,7 +83,7 @@ class UpdateService {
   }
 
   /// Phiên bản ứng dụng hiện tại (đồng bộ với pubspec.yaml)
-  static const String currentAppVersion = '1.0.0+1';
+  static const String currentAppVersion = '1.0.2+2';
 
   /// Lấy chuỗi phiên bản hiện tại của app (ví dụ: 1.0.0+1)
   Future<String> getCurrentVersionString() async {

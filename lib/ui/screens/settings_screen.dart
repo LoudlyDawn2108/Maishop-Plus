@@ -24,7 +24,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String? _testResult;
   bool _testSuccess = false;
 
-  String _currentVersion = '1.0.0+1';
+  String _currentVersion = UpdateService.currentAppVersion;
   bool _isCheckingUpdate = false;
   AppUpdateInfo? _availableUpdate;
 
