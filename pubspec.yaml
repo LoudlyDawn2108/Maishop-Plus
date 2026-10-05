@@ -44,6 +44,8 @@ dependencies:
   audioplayers: ^6.4.0
   http: ^1.2.2
   image_picker: ^1.1.2
+  open_filex: ^4.7.0
+
 
 dev_dependencies:
   flutter_test:

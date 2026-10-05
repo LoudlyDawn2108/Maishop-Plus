@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../services/sheets_service.dart';
+import '../../services/update_service.dart';
 import '../../providers/cart_provider.dart';
+import '../widgets/update_dialog.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -22,6 +24,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String? _testResult;
   bool _testSuccess = false;
 
+  String _currentVersion = '1.0.0+1';
+  bool _isCheckingUpdate = false;
+  AppUpdateInfo? _availableUpdate;
+
   @override
   void initState() {
     super.initState();
@@ -35,6 +41,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _selectedMethodIndex = 1;
     } else {
       _selectedMethodIndex = 0;
+    }
+
+    _loadAppVersion();
+  }
+
+  Future<void> _loadAppVersion() async {
+    final v = await UpdateService.instance.getCurrentVersionString();
+    if (mounted) {
+      setState(() {
+        _currentVersion = v;
+      });
+    }
+  }
+
+  Future<void> _checkForUpdate() async {
+    setState(() {
+      _isCheckingUpdate = true;
+    });
+
+    final info = await UpdateService.instance.checkForUpdate();
+
+    if (mounted) {
+      setState(() {
+        _isCheckingUpdate = false;
+        _availableUpdate = info?.hasUpdate == true ? info : null;
+      });
+
+      if (info == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Không thể kiểm tra cập nhật. Vui lòng kiểm tra kết nối mạng.'),
+          ),
+        );
+      } else if (!info.hasUpdate) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: Colors.white),
+                const SizedBox(width: 8),
+                Text('Ứng dụng đang ở phiên bản mới nhất (${info.currentVersion})!'),
+              ],
+            ),
+            backgroundColor: Colors.green.shade700,
+          ),
+        );
+      } else {
+        UpdateDialog.show(context, info);
+      }
     }
   }
 
@@ -413,6 +468,122 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       : colorScheme.onErrorContainer,
                                 ),
                               ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Card 3: Thông tin ứng dụng & Cập nhật
+            Card(
+              elevation: 0,
+              color: colorScheme.surfaceContainerLow,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: colorScheme.outlineVariant.withOpacity(0.5)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.system_update_rounded, color: colorScheme.primary),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'Phiên bản & Cập nhật',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Phiên bản hiện tại:',
+                          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 14),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'v$_currentVersion',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onPrimaryContainer,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Tự động kiểm tra bản phát hành mới nhất từ GitHub Releases.',
+                      style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _isCheckingUpdate ? null : _checkForUpdate,
+                        icon: _isCheckingUpdate
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.refresh_rounded),
+                        label: Text(_isCheckingUpdate ? 'Đang kiểm tra...' : 'Kiểm tra bản cập nhật'),
+                      ),
+                    ),
+                    if (_availableUpdate != null) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primaryContainer.withOpacity(0.4),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: colorScheme.primary.withOpacity(0.5)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.new_releases_rounded, color: colorScheme.primary, size: 24),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Có bản mới v${_availableUpdate!.latestVersion}!',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                  ),
+                                  Text(
+                                    _availableUpdate!.releaseTitle,
+                                    style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            FilledButton(
+                              style: FilledButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              ),
+                              onPressed: () => UpdateDialog.show(context, _availableUpdate!),
+                              child: const Text('Cập nhật', style: TextStyle(fontSize: 12)),
                             ),
                           ],
                         ),
