@@ -40,7 +40,7 @@ class ProductLookupService {
       );
       final response = await http.get(url, headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
-      }).timeout(const Duration(seconds: 4));
+      }).timeout(const Duration(seconds: 6));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
@@ -123,7 +123,7 @@ class ProductLookupService {
       final url = Uri.parse(requestUrl);
       final response = await http
           .get(url, headers: {'User-Agent': _userAgent})
-          .timeout(const Duration(seconds: 3));
+          .timeout(const Duration(seconds: 8));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
@@ -183,7 +183,7 @@ class ProductLookupService {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
             'Accept': 'application/json',
           })
-          .timeout(const Duration(seconds: 4));
+          .timeout(const Duration(seconds: 8));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
