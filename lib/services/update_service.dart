@@ -2,9 +2,22 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
+
+/// Kết quả kích hoạt trình cài đặt APK trên thiết bị
+class ApkInstallResult {
+  final bool success;
+  final bool permissionRequired;
+  final String? errorMessage;
+
+  const ApkInstallResult({
+    required this.success,
+    this.permissionRequired = false,
+    this.errorMessage,
+  });
+}
 
 /// Thông tin chi tiết bản cập nhật ứng dụng từ GitHub Releases
 class AppUpdateInfo {
@@ -83,7 +96,7 @@ class UpdateService {
   }
 
   /// Phiên bản ứng dụng hiện tại (đồng bộ với pubspec.yaml)
-  static const String currentAppVersion = '1.0.3+3';
+  static const String currentAppVersion = '1.0.4+4';
 
   /// Lấy chuỗi phiên bản hiện tại của app (ví dụ: 1.0.0+1)
   Future<String> getCurrentVersionString() async {
@@ -222,11 +235,88 @@ class UpdateService {
     }
   }
 
-  /// Kích hoạt trình cài đặt ứng dụng Android để cập nhật APK
-  Future<OpenResult> installApk(String filePath) async {
-    return await OpenFilex.open(
-      filePath,
-      type: 'application/vnd.android.package-archive',
-    );
+  static const MethodChannel _installerChannel =
+      MethodChannel('com.example.maishop_plus/app_installer');
+
+  /// Kiểm tra ứng dụng đã có quyền cài đặt từ nguồn không xác định hay chưa (Android 8.0+)
+  Future<bool> canRequestPackageInstalls() async {
+    if (kIsWeb || !Platform.isAndroid) return true;
+    try {
+      final bool? result =
+          await _installerChannel.invokeMethod<bool>('canRequestPackageInstalls');
+      return result ?? false;
+    } catch (e) {
+      debugPrint('Lỗi kiểm tra quyền cài đặt APK: $e');
+      return false;
+    }
+  }
+
+  /// Mở màn hình Cài đặt của Android để người dùng bật quyền cài đặt từ nguồn không xác định
+  Future<void> openInstallPermissionSettings() async {
+    if (kIsWeb || !Platform.isAndroid) return;
+    try {
+      await _installerChannel.invokeMethod('openInstallPermissionSettings');
+    } catch (e) {
+      debugPrint('Lỗi mở màn hình cài đặt cấp quyền: $e');
+    }
+  }
+
+  /// Kích hoạt trình cài đặt ứng dụng Android để cập nhật APK.
+  /// Nếu [closeApp] = true, app sẽ tự kết thúc sau khi mở trình cài đặt.
+  Future<ApkInstallResult> installApk(String filePath, {bool closeApp = true}) async {
+    if (kIsWeb || !Platform.isAndroid) {
+      return const ApkInstallResult(
+        success: false,
+        errorMessage: 'Tính năng cài đặt APK chỉ hỗ trợ trên nền tảng Android.',
+      );
+    }
+
+    try {
+      final String? res = await _installerChannel.invokeMethod<String>(
+        'installApk',
+        {
+          'filePath': filePath,
+          'closeApp': closeApp,
+        },
+      );
+
+      if (res == 'SUCCESS') {
+        return const ApkInstallResult(success: true);
+      } else if (res == 'PERMISSION_REQUIRED') {
+        return const ApkInstallResult(
+          success: false,
+          permissionRequired: true,
+          errorMessage: 'Cần cấp quyền cài đặt ứng dụng từ nguồn không xác định.',
+        );
+      } else {
+        return ApkInstallResult(
+          success: false,
+          errorMessage: 'Trạng thái cài đặt: $res',
+        );
+      }
+    } on PlatformException catch (e) {
+      debugPrint('Lỗi PlatformException khi cài APK: ${e.code} - ${e.message}');
+      return ApkInstallResult(
+        success: false,
+        errorMessage: e.message ?? e.code,
+      );
+    } catch (e) {
+      debugPrint('Lỗi ngoại lệ khi cài APK: $e');
+      return ApkInstallResult(
+        success: false,
+        errorMessage: e.toString(),
+      );
+    }
+  }
+
+  /// Thoát ứng dụng một cách an toàn
+  Future<void> exitApp() async {
+    if (kIsWeb || !Platform.isAndroid) return;
+    try {
+      await _installerChannel.invokeMethod('exitApp');
+    } catch (_) {
+      SystemNavigator.pop();
+    }
   }
 }
+

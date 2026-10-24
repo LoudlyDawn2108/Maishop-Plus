@@ -7,3 +7,5 @@
 
 -keep class com.google.mlkit.** { *; }
 -keep interface com.google.mlkit.** { *; }
+
+-keep class androidx.core.content.FileProvider { *; }

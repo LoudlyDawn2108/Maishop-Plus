@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:open_filex/open_filex.dart';
+import 'package:flutter/services.dart';
 import '../../services/update_service.dart';
 
 enum UpdateDownloadState {
@@ -86,16 +86,41 @@ class _UpdateDialogState extends State<UpdateDialog> {
       });
 
       // Tự động mở trình cài đặt ngay sau khi tải xong
-      _installApk(file.path);
+      await _installApk(file.path);
     }
   }
 
   Future<void> _installApk(String filePath) async {
-    final result = await UpdateService.instance.installApk(filePath);
-    if (result.type != ResultType.done && mounted) {
+    final result = await UpdateService.instance.installApk(filePath, closeApp: true);
+    if (!mounted) return;
+
+    if (result.success) {
+      // Hộp thoại cài đặt APK của Android đã được gọi thành công.
+      // Chờ 600ms và đóng ứng dụng hoàn toàn để hệ thống cài đặt đè.
+      await Future.delayed(const Duration(milliseconds: 600));
+      if (mounted) {
+        SystemNavigator.pop();
+      }
+    } else if (result.permissionRequired) {
+      setState(() {
+        _state = UpdateDownloadState.error;
+        _errorMessage =
+            'Vui lòng bật quyền "Cho phép từ nguồn này" trong Cài đặt vừa mở, sau đó quay lại và bấm "CÀI ĐẶT LẠI".';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng bật quyền cài đặt rồi bấm "CÀI ĐẶT LẠI"'),
+          duration: Duration(seconds: 4),
+        ),
+      );
+    } else {
+      setState(() {
+        _state = UpdateDownloadState.error;
+        _errorMessage = 'Không thể mở trình cài đặt: ${result.errorMessage}';
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Không thể mở bộ cài: ${result.message}'),
+          content: Text('Không thể mở bộ cài: ${result.errorMessage}'),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
@@ -305,6 +330,12 @@ class _UpdateDialogState extends State<UpdateDialog> {
           else if (_state == UpdateDownloadState.downloading)
             const SizedBox.shrink()
           else if (_state == UpdateDownloadState.completed && _downloadedApkFile != null)
+            FilledButton.icon(
+              icon: const Icon(Icons.install_mobile_rounded, size: 18),
+              label: const Text('CÀI ĐẶT NGAY', style: TextStyle(fontWeight: FontWeight.bold)),
+              onPressed: () => _installApk(_downloadedApkFile!.path),
+            )
+          else if (_state == UpdateDownloadState.error && _downloadedApkFile != null)
             FilledButton.icon(
               icon: const Icon(Icons.install_mobile_rounded, size: 18),
               label: const Text('CÀI ĐẶT LẠI', style: TextStyle(fontWeight: FontWeight.bold)),

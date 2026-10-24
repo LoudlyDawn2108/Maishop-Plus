@@ -48,5 +48,33 @@ void main() {
       );
       expect(info2.formattedSize, 'Không rõ');
     });
+
+    test('Phiên bản hiện tại đồng bộ 1.0.4+4', () {
+      expect(UpdateService.currentAppVersion, '1.0.4+4');
+    });
+
+    test('Khởi tạo ApkInstallResult chính xác theo từng trạng thái', () {
+      const resSuccess = ApkInstallResult(success: true);
+      expect(resSuccess.success, isTrue);
+      expect(resSuccess.permissionRequired, isFalse);
+      expect(resSuccess.errorMessage, isNull);
+
+      const resPerm = ApkInstallResult(
+        success: false,
+        permissionRequired: true,
+        errorMessage: 'Cần cấp quyền',
+      );
+      expect(resPerm.success, isFalse);
+      expect(resPerm.permissionRequired, isTrue);
+      expect(resPerm.errorMessage, 'Cần cấp quyền');
+
+      const resErr = ApkInstallResult(
+        success: false,
+        errorMessage: 'Lỗi IO',
+      );
+      expect(resErr.success, isFalse);
+      expect(resErr.permissionRequired, isFalse);
+      expect(resErr.errorMessage, 'Lỗi IO');
+    });
   });
 }
