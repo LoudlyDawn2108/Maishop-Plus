@@ -184,10 +184,156 @@ class _PosScreenState extends State<PosScreen>
       ),
       body: Column(
         children: [
-          // Khung quét mã vạch
+          // 1. Danh sách giỏ hàng (Chiếm toàn bộ không gian phía trên)
+          Expanded(
+            child: cart.items.isEmpty
+                ? Center(
+                    child: SingleChildScrollView(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () {
+                          if (_isCameraExpanded) {
+                            _turnOffCamera();
+                          } else {
+                            setState(() {
+                              _isCameraExpanded = true;
+                            });
+                          }
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: colorScheme.primaryContainer.withOpacity(0.35),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  _isCameraExpanded
+                                      ? Icons.photo_camera_outlined
+                                      : Icons.qr_code_scanner_rounded,
+                                  size: 44,
+                                  color: colorScheme.primary,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                _isCameraExpanded
+                                    ? 'Đang bật camera quét ở bên dưới'
+                                    : 'Chạm để mở camera quét mã',
+                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _isCameraExpanded
+                                    ? 'Đưa mã vạch vào khung ngắm phía dưới'
+                                    : 'Món chưa có trong kho sẽ có thông báo để đăng ký riêng',
+                                style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
+                    itemCount: cart.items.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (ctx, index) {
+                      final item = cart.items[index];
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    item.product.name,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '${CurrencyUtils.formatVND(item.product.price)} / ${item.product.unit}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Bộ nút tăng giảm số lượng
+                            Container(
+                              decoration: BoxDecoration(
+                                color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    iconSize: 15,
+                                    padding: const EdgeInsets.all(4),
+                                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                                    icon: const Icon(Icons.remove_rounded),
+                                    onPressed: () => cart.decrementQuantity(index),
+                                  ),
+                                  Text(
+                                    '${item.quantity}',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                  ),
+                                  IconButton(
+                                    iconSize: 15,
+                                    padding: const EdgeInsets.all(4),
+                                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                                    icon: const Icon(Icons.add_rounded),
+                                    onPressed: () => cart.incrementQuantity(index),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            // Thành tiền
+                            SizedBox(
+                              width: 76,
+                              child: Text(
+                                CurrencyUtils.formatVND(item.subtotal),
+                                textAlign: TextAlign.right,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                  color: colorScheme.primary,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              icon: Icon(Icons.delete_outline_rounded, size: 18, color: colorScheme.error),
+                              padding: const EdgeInsets.all(4),
+                              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                              onPressed: () => cart.removeItem(index),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+
+          // 2. Camera quét mã vạch (chuyển xuống dưới, thu gọn 25% vừa vặn)
           if (_isCameraExpanded)
             Container(
-              height: 200,
+              height: 150,
               color: Colors.black,
               child: Stack(
                 children: [
@@ -216,11 +362,11 @@ class _PosScreenState extends State<PosScreen>
                   IgnorePointer(
                     child: Center(
                       child: Container(
-                        width: 240,
-                        height: 110,
+                        width: 210,
+                        height: 90,
                         decoration: BoxDecoration(
-                          border: Border.all(color: colorScheme.primary, width: 2.5),
-                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: colorScheme.primary, width: 2.2),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                     ),
@@ -229,8 +375,8 @@ class _PosScreenState extends State<PosScreen>
                   // Hiệu ứng ô lấy nét màu vàng khi chạm màn hình
                   if (_showFocusReticle && _focusPoint != null)
                     Positioned(
-                      left: _focusPoint!.dx - 28,
-                      top: _focusPoint!.dy - 28,
+                      left: _focusPoint!.dx - 24,
+                      top: _focusPoint!.dy - 24,
                       child: IgnorePointer(
                         child: AnimatedBuilder(
                           animation: _focusAnimController,
@@ -239,19 +385,19 @@ class _PosScreenState extends State<PosScreen>
                             return Transform.scale(
                               scale: scale,
                               child: Container(
-                                width: 56,
-                                height: 56,
+                                width: 48,
+                                height: 48,
                                 decoration: BoxDecoration(
                                   border: Border.all(
                                     color: const Color(0xFFFFD600), // Vàng tiêu cự
-                                    width: 2.2,
+                                    width: 2.0,
                                   ),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Center(
                                   child: Container(
-                                    width: 6,
-                                    height: 6,
+                                    width: 5,
+                                    height: 5,
                                     decoration: const BoxDecoration(
                                       color: Color(0xFFFFD600),
                                       shape: BoxShape.circle,
@@ -267,7 +413,7 @@ class _PosScreenState extends State<PosScreen>
 
                   // Dòng hướng dẫn chạm lấy nét
                   const Positioned(
-                    bottom: 6,
+                    bottom: 4,
                     left: 0,
                     right: 0,
                     child: IgnorePointer(
@@ -276,7 +422,7 @@ class _PosScreenState extends State<PosScreen>
                           'Chạm vào màn hình để lấy nét',
                           style: TextStyle(
                             color: Colors.white70,
-                            fontSize: 11,
+                            fontSize: 10,
                             fontWeight: FontWeight.w500,
                             shadows: [
                               Shadow(color: Colors.black, blurRadius: 4),
@@ -289,12 +435,14 @@ class _PosScreenState extends State<PosScreen>
 
                   // Điều khiển Camera (Flash & Flip)
                   Positioned(
-                    top: 8,
-                    right: 8,
+                    top: 6,
+                    right: 6,
                     child: Row(
                       children: [
                         IconButton.filledTonal(
-                          iconSize: 20,
+                          iconSize: 17,
+                          padding: const EdgeInsets.all(5),
+                          constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
                           icon: Icon(
                             _isTorchOn ? Icons.flash_on_rounded : Icons.flash_off_rounded,
                           ),
@@ -305,9 +453,11 @@ class _PosScreenState extends State<PosScreen>
                             });
                           },
                         ),
-                        const SizedBox(width: 6),
+                        const SizedBox(width: 4),
                         IconButton.filledTonal(
-                          iconSize: 20,
+                          iconSize: 17,
+                          padding: const EdgeInsets.all(5),
+                          constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
                           icon: const Icon(Icons.flip_camera_android_rounded),
                           onPressed: () => _scannerController.switchCamera(),
                         ),
@@ -318,9 +468,10 @@ class _PosScreenState extends State<PosScreen>
               ),
             ),
 
-          // Nhập mã vạch thủ công & Nút kích hoạt camera quét mã
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          // 3. Nhập mã vạch thủ công & Nút bật/tắt camera (ở ngay phía dưới, tiện thao tác một tay)
+          Container(
+            color: colorScheme.surface,
+            padding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
             child: Row(
               children: [
                 Expanded(
@@ -329,8 +480,9 @@ class _PosScreenState extends State<PosScreen>
                     decoration: InputDecoration(
                       hintText: 'Nhập mã vạch sản phẩm...',
                       isDense: true,
-                      prefixIcon: const Icon(Icons.keyboard_alt_outlined, size: 20),
+                      prefixIcon: const Icon(Icons.keyboard_alt_outlined, size: 18),
                       suffixIcon: IconButton(
+                        iconSize: 18,
                         icon: const Icon(Icons.add_circle_outline_rounded),
                         tooltip: 'Thêm vào giỏ',
                         onPressed: () {
@@ -351,7 +503,7 @@ class _PosScreenState extends State<PosScreen>
                     },
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 IconButton.filled(
                   style: IconButton.styleFrom(
                     backgroundColor: _isCameraExpanded
@@ -361,15 +513,16 @@ class _PosScreenState extends State<PosScreen>
                         ? colorScheme.onErrorContainer
                         : colorScheme.onPrimary,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(9),
                   ),
                   tooltip: _isCameraExpanded ? 'Tắt camera' : 'Bật camera quét mã',
                   icon: Icon(
                     _isCameraExpanded
                         ? Icons.close_rounded
                         : Icons.qr_code_scanner_rounded,
+                    size: 20,
                   ),
                   onPressed: () {
                     if (_isCameraExpanded) {
@@ -385,163 +538,22 @@ class _PosScreenState extends State<PosScreen>
             ),
           ),
 
-          const Divider(height: 12),
-
-          // Danh sách giỏ hàng
-          Expanded(
-            child: cart.items.isEmpty
-                ? Center(
-                    child: SingleChildScrollView(
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(24),
-                        onTap: () {
-                          if (_isCameraExpanded) {
-                            _turnOffCamera();
-                          } else {
-                            setState(() {
-                              _isCameraExpanded = true;
-                            });
-                          }
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(20),
-                                decoration: BoxDecoration(
-                                  color: colorScheme.primaryContainer.withOpacity(0.35),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  _isCameraExpanded
-                                      ? Icons.photo_camera_outlined
-                                      : Icons.qr_code_scanner_rounded,
-                                  size: 56,
-                                  color: colorScheme.primary,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                _isCameraExpanded
-                                    ? 'Đang bật camera quét'
-                                    : 'Chạm để mở camera quét mã',
-                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                _isCameraExpanded
-                                    ? 'Đưa mã vạch vào khung ngắm phía trên'
-                                    : 'Món chưa có trong kho sẽ có thông báo để đăng ký riêng',
-                                style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-                    itemCount: cart.items.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (ctx, index) {
-                      final item = cart.items[index];
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    item.product.name,
-                                    style: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '${CurrencyUtils.formatVND(item.product.price)} / ${item.product.unit}',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            // Bộ nút tăng giảm số lượng
-                            Container(
-                              decoration: BoxDecoration(
-                                color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    iconSize: 18,
-                                    icon: const Icon(Icons.remove_rounded),
-                                    onPressed: () => cart.decrementQuantity(index),
-                                  ),
-                                  Text(
-                                    '${item.quantity}',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                  ),
-                                  IconButton(
-                                    iconSize: 18,
-                                    icon: const Icon(Icons.add_rounded),
-                                    onPressed: () => cart.incrementQuantity(index),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            // Thành tiền
-                            SizedBox(
-                              width: 80,
-                              child: Text(
-                                CurrencyUtils.formatVND(item.subtotal),
-                                textAlign: TextAlign.right,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                  color: colorScheme.primary,
-                                ),
-                              ),
-                            ),
-                            IconButton(
-                              icon: Icon(Icons.delete_outline_rounded, size: 20, color: colorScheme.error),
-                              onPressed: () => cart.removeItem(index),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-          ),
-
-          // Thanh tính tổng tiền đáy màn hình
+          // 4. Thanh tính tổng tiền đáy màn hình & Nút THANH TOÁN
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
             decoration: BoxDecoration(
               color: colorScheme.surfaceContainer,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, -3),
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, -2),
                 ),
               ],
             ),
             child: SafeArea(
+              top: false,
               child: Row(
                 children: [
                   Column(
@@ -551,14 +563,14 @@ class _PosScreenState extends State<PosScreen>
                       Text(
                         'Tổng ${cart.totalQuantity} món:',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: 11,
                           color: colorScheme.onSurfaceVariant,
                         ),
                       ),
                       Text(
                         CurrencyUtils.formatVND(cart.totalAmount),
                         style: TextStyle(
-                          fontSize: 22,
+                          fontSize: 18,
                           fontWeight: FontWeight.w900,
                           color: colorScheme.primary,
                         ),
@@ -568,7 +580,10 @@ class _PosScreenState extends State<PosScreen>
                   const Spacer(),
                   FilledButton.icon(
                     style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                     onPressed: cart.items.isEmpty
                         ? null
@@ -576,10 +591,10 @@ class _PosScreenState extends State<PosScreen>
                             _turnOffCamera();
                             CheckoutDialog.show(context);
                           },
-                    icon: const Icon(Icons.shopping_cart_checkout_rounded),
+                    icon: const Icon(Icons.shopping_cart_checkout_rounded, size: 17),
                     label: const Text(
                       'THANH TOÁN',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ],

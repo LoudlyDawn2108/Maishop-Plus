@@ -166,68 +166,17 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (ctx) => const ProductFormScreen(),
-            ),
-          );
-        },
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Đăng ký sản phẩm'),
-      ),
       body: Column(
         children: [
-          // Thanh tìm kiếm & bộ lọc
+          // Thanh hiển thị trạng thái sắp xếp & số lượng (gọn gàng ở trên)
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Tìm theo tên hoặc mã vạch...',
-                      prefixIcon: const Icon(Icons.search_rounded),
-                      suffixIcon: _searchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear_rounded),
-                              onPressed: () {
-                                _searchController.clear();
-                                provider.setSearchQuery('');
-                              },
-                            )
-                          : IconButton(
-                              tooltip: 'Quét mã vạch tìm kiếm',
-                              icon: const Icon(Icons.qr_code_scanner_rounded),
-                              onPressed: _openBarcodeFilter,
-                            ),
-                    ),
-                    onChanged: (val) {
-                      provider.setSearchQuery(val);
-                    },
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filledTonal(
-                  tooltip: 'Sắp xếp danh sách',
-                  icon: const Icon(Icons.sort_rounded),
-                  onPressed: () => _showSortOptions(context, provider),
-                ),
-              ],
-            ),
-          ),
-
-          // Thanh hiển thị trạng thái sắp xếp & số lượng
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            padding: const EdgeInsets.fromLTRB(14, 6, 14, 4),
             child: Row(
               children: [
                 Text(
                   'Tổng: ${provider.products.length} sản phẩm',
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: colorScheme.onSurfaceVariant,
                   ),
@@ -235,17 +184,17 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 const Spacer(),
                 InkWell(
                   onTap: () => _showSortOptions(context, provider),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(6),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     child: Row(
                       children: [
-                        Icon(Icons.tune_rounded, size: 14, color: colorScheme.primary),
+                        Icon(Icons.tune_rounded, size: 13, color: colorScheme.primary),
                         const SizedBox(width: 4),
                         Text(
                           provider.sortOption.label,
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 11,
                             fontWeight: FontWeight.w600,
                             color: colorScheme.primary,
                           ),
@@ -260,7 +209,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
           const Divider(height: 1),
 
-          // Danh sách sản phẩm
+          // Danh sách sản phẩm (Chiếm toàn bộ không gian giữa)
           Expanded(
             child: provider.isLoading
                 ? const Center(child: CircularProgressIndicator())
@@ -269,20 +218,20 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.inventory_2_outlined, size: 64, color: colorScheme.outline),
-                            const SizedBox(height: 16),
+                            Icon(Icons.inventory_2_outlined, size: 52, color: colorScheme.outline),
+                            const SizedBox(height: 12),
                             Text(
                               _searchController.text.isNotEmpty
                                   ? 'Không tìm thấy sản phẩm nào'
                                   : 'Chưa có sản phẩm nào trong kho',
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 6),
                             Text(
                               _searchController.text.isNotEmpty
                                   ? 'Hãy thử tìm kiếm với từ khóa khác'
-                                  : 'Bấm nút "Đăng ký sản phẩm" bên dưới để thêm món đầu tiên',
-                              style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+                                  : 'Bấm nút "+" ở thanh công cụ bên dưới để thêm món đầu tiên',
+                              style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
                             ),
                           ],
                         ),
@@ -292,7 +241,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           await provider.loadProducts();
                         },
                         child: ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
+                          padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
                           itemCount: provider.products.length,
                           itemBuilder: (ctx, index) {
                             final product = provider.products[index];
@@ -300,7 +249,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                             final isOutOfStock = product.stock <= 0;
 
                             return Card(
-                              margin: const EdgeInsets.only(bottom: 10),
+                              margin: const EdgeInsets.only(bottom: 8),
                               child: InkWell(
                                 onTap: () {
                                   Navigator.of(context).push(
@@ -309,9 +258,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                     ),
                                   );
                                 },
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(12),
                                 child: Padding(
-                                  padding: const EdgeInsets.all(14),
+                                  padding: const EdgeInsets.all(11),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
@@ -474,6 +423,72 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           },
                         ),
                       ),
+          ),
+
+          // Thanh tìm kiếm, lọc & thêm sản phẩm ở dưới cùng màn hình (dễ thao tác một tay)
+          Container(
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainer,
+              border: Border(
+                top: BorderSide(color: colorScheme.outlineVariant.withOpacity(0.4)),
+              ),
+            ),
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+            child: SafeArea(
+              top: false,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: 'Tìm theo tên hoặc mã vạch...',
+                        isDense: true,
+                        prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                        suffixIcon: _searchController.text.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear_rounded, size: 16),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  provider.setSearchQuery('');
+                                },
+                              )
+                            : IconButton(
+                                tooltip: 'Quét mã vạch tìm kiếm',
+                                icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
+                                onPressed: _openBarcodeFilter,
+                              ),
+                      ),
+                      onChanged: (val) {
+                        provider.setSearchQuery(val);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  IconButton.filledTonal(
+                    tooltip: 'Sắp xếp danh sách',
+                    icon: const Icon(Icons.tune_rounded, size: 19),
+                    padding: const EdgeInsets.all(8),
+                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    onPressed: () => _showSortOptions(context, provider),
+                  ),
+                  const SizedBox(width: 6),
+                  IconButton.filled(
+                    tooltip: 'Đăng ký sản phẩm mới',
+                    icon: const Icon(Icons.add_rounded, size: 21),
+                    padding: const EdgeInsets.all(8),
+                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (ctx) => const ProductFormScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),

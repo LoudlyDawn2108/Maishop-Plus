@@ -38,6 +38,15 @@ class MaiShopApp extends StatelessWidget {
             theme: AppTheme.lightTheme(lightDynamic),
             darkTheme: AppTheme.darkTheme(darkDynamic),
             themeMode: ThemeMode.system,
+            builder: (context, child) {
+              final mq = MediaQuery.of(context);
+              return MediaQuery(
+                data: mq.copyWith(
+                  textScaler: const TextScaler.linear(0.82),
+                ),
+                child: child!,
+              );
+            },
             home: const MainNavigationShell(),
           );
         },
@@ -129,6 +138,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         ],
       ),
       bottomNavigationBar: NavigationBar(
+        height: 58,
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) {
           setState(() {
@@ -140,23 +150,23 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         },
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.point_of_sale_outlined),
-            selectedIcon: Icon(Icons.point_of_sale_rounded),
+            icon: Icon(Icons.point_of_sale_outlined, size: 21),
+            selectedIcon: Icon(Icons.point_of_sale_rounded, size: 21),
             label: 'Thu ngân',
           ),
           NavigationDestination(
-            icon: Icon(Icons.inventory_2_outlined),
-            selectedIcon: Icon(Icons.inventory_2_rounded),
+            icon: Icon(Icons.inventory_2_outlined, size: 21),
+            selectedIcon: Icon(Icons.inventory_2_rounded, size: 21),
             label: 'Kho hàng',
           ),
           NavigationDestination(
-            icon: Icon(Icons.receipt_long_outlined),
-            selectedIcon: Icon(Icons.receipt_long_rounded),
+            icon: Icon(Icons.receipt_long_outlined, size: 21),
+            selectedIcon: Icon(Icons.receipt_long_rounded, size: 21),
             label: 'Lịch sử',
           ),
           NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings_rounded),
+            icon: Icon(Icons.settings_outlined, size: 21),
+            selectedIcon: Icon(Icons.settings_rounded, size: 21),
             label: 'Cài đặt',
           ),
         ],
